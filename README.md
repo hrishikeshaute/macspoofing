@@ -11,6 +11,19 @@ Enhance privacy/anonymity (e.g., avoid device tracking on public Wi-Fi).
 Bypass MAC-based network filters or restrictions.
 
 Test network access controls in cybersecurity/ethical hacking contexts.
+$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
+My Novelty
+✅ Cross-platform (Windows & Linux) support.
+
+✅ Automatic MAC reversion after a delay (--revert flag).
+
+✅ Random MAC generation.
+
+✅ Registry manipulation on Windows to support actual MAC spoofing (which many tools skip).
+
+✅ CLI-based, user-friendly interface for scripting/integration.
+
+✅ Clean Python-based implementation — easier to audit or extend.
 $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$4
 first step is to open powershell and run it as admin 
 check the first original mac address by ( Get-NetAdapter)
