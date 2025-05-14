@@ -1,0 +1,132 @@
+#!/usr/bin/env python3
+import subprocess
+import optparse
+import re
+import random
+import time
+import platform
+import sys
+
+# Windows-only imports
+if platform.system() == "Windows":
+    import winreg
+    import ctypes
+
+def get_args():
+    parser = optparse.OptionParser()
+    parser.add_option("-i", "--interface", dest="interface", help="Network interface (e.g., eth0, Wi-Fi, Ethernet)")
+    parser.add_option("-m", "--mac", dest="mac", help="New MAC address to assign")
+    parser.add_option("-r", "--random", action="store_true", dest="random", help="Generate a random MAC address")
+    parser.add_option("--revert", dest="revert", type="int", help="Auto-revert to original MAC after N seconds")
+    (options, args) = parser.parse_args()
+
+    if not options.interface:
+        parser.error("[-] Please specify an interface. Use --help for more info.")
+    return options
+
+def generate_random_mac():
+    return "02:%02x:%02x:%02x:%02x:%02x" % tuple(random.randint(0x00, 0xFF) for _ in range(5))
+
+def get_current_mac(interface):
+    os_type = platform.system()
+    try:
+        if os_type == "Linux":
+            output = subprocess.check_output(["ifconfig", interface]).decode('utf-8')
+        elif os_type == "Windows":
+            output = subprocess.check_output("getmac /v /fo list", shell=True).decode('utf-8')
+        else:
+            print("Unsupported OS")
+            return None
+        mac_search = re.search(r"([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})", output)
+        if mac_search:
+            return mac_search.group(0)
+        else:
+            return None
+    except Exception as e:
+        print(f"[-] Error reading MAC: {e}")
+        return None
+
+def change_mac_linux(interface, new_mac):
+    subprocess.call(f"ifconfig {interface} down", shell=True)
+    subprocess.call(f"ifconfig {interface} hw ether {new_mac}", shell=True)
+    subprocess.call(f"ifconfig {interface} up", shell=True)
+
+def change_mac_windows(interface, new_mac):
+    mac_no_colon = new_mac.replace(":", "").replace("-", "")
+    reg_path = r"SYSTEM\CurrentControlSet\Control\Class\{4d36e972-e325-11ce-bfc1-08002be10318}"
+    found = False
+
+    for i in range(1000):
+        try:
+            key_path = reg_path + "\\" + str(i).zfill(4)
+            with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, key_path, 0, winreg.KEY_ALL_ACCESS) as key:
+                try:
+                    name, _ = winreg.QueryValueEx(key, "DriverDesc")
+                    if interface.lower() in name.lower():
+                        winreg.SetValueEx(key, "NetworkAddress", 0, winreg.REG_SZ, mac_no_colon)
+                        found = True
+                        break
+                except:
+                    continue
+        except FileNotFoundError:
+            break
+        except Exception as e:
+            print("[-] Registry error:", e)
+            return
+
+    if not found:
+        print("[-] Could not find matching registry entry for interface.")
+        return
+
+    subprocess.call(f'netsh interface set interface name="{interface}" admin=disabled', shell=True)
+    subprocess.call(f'netsh interface set interface name="{interface}" admin=enabled', shell=True)
+    print("[+] MAC address updated and adapter restarted.")
+
+def change_mac(interface, new_mac):
+    os_type = platform.system()
+    print(f"[+] Changing MAC address for {interface} to {new_mac}")
+    if os_type == "Linux":
+        change_mac_linux(interface, new_mac)
+    elif os_type == "Windows":
+        if not ctypes.windll.shell32.IsUserAnAdmin():
+            print("[-] Please run as administrator to spoof MAC on Windows.")
+            sys.exit(1)
+        change_mac_windows(interface, new_mac)
+    else:
+        print("[-] Unsupported OS.")
+
+def main():
+    options = get_args()
+
+    if options.random:
+        new_mac = generate_random_mac()
+        print("[*] Generated random MAC:", new_mac)
+    elif options.mac:
+        new_mac = options.mac
+    else:
+        print("[-] Please specify a MAC address or use --random")
+        sys.exit(1)
+
+    original_mac = get_current_mac(options.interface)
+    if original_mac:
+        print("[*] Original MAC address:", original_mac)
+    else:
+        print("[-] Could not read original MAC address.")
+
+    change_mac(options.interface, new_mac)
+    time.sleep(2)
+    updated_mac = get_current_mac(options.interface)
+
+    if updated_mac and updated_mac.lower().replace("-", ":") == new_mac.lower().replace("-", ":"):
+        print("[+] MAC successfully changed to:", updated_mac)
+    else:
+        print("[-] MAC change may have failed. Current MAC is:", updated_mac)
+
+    if options.revert:
+        print(f"[*] Will revert MAC address back to original in {options.revert} seconds...")
+        time.sleep(options.revert)
+        change_mac(options.interface, original_mac)
+        print("[+] Reverted to original MAC:", get_current_mac(options.interface))
+
+if __name__ == "__main__":
+    main()
